@@ -9,6 +9,8 @@ was committed to the `master` branch. This is not necessarily the date that
 the code was deployed.
 
 ## [Unreleased]
+### Changed
+- Use the Brave Alert Library for the text message flow (CU-bar0fm).
 
 ## [2.0.0] - 2020-10-29
 ### Added
