@@ -7,6 +7,7 @@ var it = require('mocha').it
 var beforeEach = require('mocha').beforeEach
 var afterEach = require('mocha').afterEach
 var after = require('mocha').after
+const helpers = require('brave-alert-lib').helpers
 
 const STATES = require('../SessionStateEnum.js');
 let imports = require('../server.js')
@@ -83,7 +84,7 @@ describe('Chatbot server', () => {
             await db.clearSessions()
             await db.clearButtons()
             await db.clearInstallations()
-            console.log('\n')
+            helpers.log('\n')
         });
 
         it('should return 400 to a request with an empty body', async () => {
@@ -317,7 +318,7 @@ describe('Chatbot server', () => {
             await db.clearSessions()
             await db.clearButtons()
             await db.clearInstallations()
-            console.log('\n')
+            helpers.log('\n')
         });
 
         after(async function() {

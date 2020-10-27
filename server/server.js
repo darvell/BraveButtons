@@ -9,6 +9,7 @@ var cookieParser = require('cookie-parser');
 var session = require('express-session');
 const chalk = require('chalk')
 const Mustache = require('mustache')
+const helpers = require('brave-alert-lib').helpers
 
 const FLIC_THRESHOLD_MILLIS = 210*1000
 const HEARTBEAT_THRESHOLD_MILLIS = 75*1000
@@ -17,7 +18,6 @@ const PING_THRESHOLD_MILLIS = 320*1000
 const STATES = require('./SessionStateEnum.js');
 require('dotenv').load();
 const db = require('./db/db.js')
-const helpers = require('./helpers.js')
 const StateMachine = require('./StateMachine.js')
 
 const app = express();
@@ -34,30 +34,12 @@ const client = require('twilio')(accountSid, authToken);
 const heartbeatDashboardTemplate = fs.readFileSync(`${__dirname}/heartbeatDashboard.mst`, 'utf-8')
 const chatbotDashboardTemplate = fs.readFileSync(`${__dirname}/chatbotDashboard.mst`, 'utf-8')
 
-app.use(bodyParser.urlencoded({extended: true}));
-app.use(express.static(__dirname));
-
-function log(logString) {
-    if(process.env.NODE_ENV === 'test') {
-        console.log(chalk.dim.cyan('\t' + logString))
-    }
-    else {
-        console.log(moment().toISOString() + " - " + logString)
-    }
-}
-
-/**
-Check if a request is valid based on the presence of required body properties
-**/
-function isValidRequest(req, properties) {
-
-    const hasAllProperties = (hasAllPropertiesSoFar, currentProperty) => hasAllPropertiesSoFar && Object.prototype.hasOwnProperty.call(req.body, currentProperty);
-    return properties.reduce(hasAllProperties, true);
-}
+app.use(bodyParser.urlencoded({extended: true}))
+app.use(express.static(__dirname))
 
 async function handleValidRequest(button, numPresses) {
 
-    log('UUID: ' + button.button_id.toString() + ' Unit: ' + button.unit.toString() + ' Presses: ' + numPresses.toString());
+    helpers.log('UUID: ' + button.button_id.toString() + ' Unit: ' + button.unit.toString() + ' Presses: ' + numPresses.toString());
 
     let client = await db.beginTransaction()
 
@@ -87,7 +69,7 @@ async function handleTwilioRequest(req) {
     let session = await db.getMostRecentIncompleteSessionWithPhoneNumber(buttonPhone)
 
     if (session === null) {
-        log(`received twilio message with no corresponding open session: ${message}`)
+        helpers.log(`received twilio message with no corresponding open session: ${message}`)
         return 200
     }
 
@@ -102,7 +84,7 @@ async function handleTwilioRequest(req) {
         return 200;
     } 
     else {
-        log('Invalid Phone Number');
+        helpers.log('Invalid Phone Number');
         return 400;
     }
 }
@@ -128,10 +110,10 @@ async function sendButtonPressMessageForSession(session) {
 async function sendTwilioMessage(toPhoneNumber, fromPhoneNumber, message) {
     try {
         await client.messages.create({from: fromPhoneNumber, body: message, to: toPhoneNumber})
-            .then(message => log(message.sid))
+            .then(message => helpers.log(message.sid))
     }
     catch(err) {
-        log(err)
+        helpers.log(err)
     }
 }
 
@@ -141,7 +123,7 @@ async function sendReminderMessageForSession(sessionId) {
 
 
     if (session === null) {
-        log("couldn't find session when sending reminder message")
+        helpers.log("couldn't find session when sending reminder message")
         return
     }
     
@@ -279,7 +261,7 @@ app.get('/dashboard/:installationId?', async (req, res) => {
         res.send(Mustache.render(chatbotDashboardTemplate, viewParams))
     }
     catch(err) {
-        log(err)
+        helpers.log(err)
         res.status(500).send()
     }
 });
@@ -334,10 +316,10 @@ app.post('/', jsonBodyParser, async (req, res) => {
     try {
         const requiredBodyParams = ['UUID','Type'];
 
-        if (isValidRequest(req, requiredBodyParams)) {
+        if (helpers.isValidRequest(req, requiredBodyParams)) {
             let button = await db.getButtonWithButtonId(req.body.UUID)
             if(button === null) {
-                log(`Bad request: UUID is not registered. UUID is ${req.body.UUID}`);
+                helpers.log(`Bad request: UUID is not registered. UUID is ${req.body.UUID}`);
                 res.status(400).send();
             }
             else {
@@ -352,12 +334,12 @@ app.post('/', jsonBodyParser, async (req, res) => {
             }
         }
         else {
-            log('Bad request: UUID is missing');
+            helpers.log('Bad request: UUID is missing');
             res.status(400).send();
         }
     }
     catch(err) {
-        log(err)
+        helpers.log(err)
         res.status(500).send()
     }
 });
@@ -367,18 +349,18 @@ app.post('/message', jsonBodyParser, async (req, res) => {
     try {
         const requiredBodyParams = ['Body', 'From', 'To'];
 
-        if (isValidRequest(req, requiredBodyParams)) {
+        if (helpers.isValidRequest(req, requiredBodyParams)) {
             let status = await handleTwilioRequest(req);
             res.writeHead(200, {'Content-Type': 'text/xml'});
             res.status(status).send();
         } 
         else {
-            log('Bad request: Body or From fields are missing');
+            helpers.log('Bad request: Body or From fields are missing');
             res.status(400).send();
         }
     }
     catch(err) {
-        log(err)
+        helpers.log(err)
         res.status(500).send()
     }
 });
@@ -386,7 +368,7 @@ app.post('/message', jsonBodyParser, async (req, res) => {
 app.post('/heartbeat', jsonBodyParser, async (req, res) => {
    
     try {
-        log(`got a heartbeat from ${req.body.system_id}, flic_last_seen_secs is ${req.body.flic_last_seen_secs}, flic_last_ping_secs is ${req.body.flic_last_ping_secs}`)    
+        helpers.log(`got a heartbeat from ${req.body.system_id}, flic_last_seen_secs is ${req.body.flic_last_seen_secs}, flic_last_ping_secs is ${req.body.flic_last_ping_secs}`)    
         let flicLastSeenTime = moment().subtract(req.body.flic_last_seen_secs, 'seconds').toISOString()
         let flicLastPingTime = moment().subtract(req.body.flic_last_ping_secs, 'seconds').toISOString()
         let heartbeatLastSeenTime = moment().toISOString()
@@ -394,7 +376,7 @@ app.post('/heartbeat', jsonBodyParser, async (req, res) => {
         res.status(200).send()
     }
     catch(err) {
-        log(err)
+        helpers.log(err)
         res.status(500).send()
     }
 })
@@ -402,12 +384,12 @@ app.post('/heartbeat', jsonBodyParser, async (req, res) => {
 app.post('/heartbeat/rename_system', jsonBodyParser, async (req, res) => {
 
     try {
-        log('got a request to rename system ' + req.body.system_id)
+        helpers.log('got a request to rename system ' + req.body.system_id)
         await db.saveHubRename(req.body.system_id, req.body.system_name)
         res.status(200).send()
     }
     catch(err) {
-        log(err)
+        helpers.log(err)
         res.status(500).send()
     }
 })
@@ -415,12 +397,12 @@ app.post('/heartbeat/rename_system', jsonBodyParser, async (req, res) => {
 app.post('/heartbeat/hide_system', jsonBodyParser, async (req, res) => {
 
     try {
-        log('got a request to hide system ' + req.body.system_id)
+        helpers.log('got a request to hide system ' + req.body.system_id)
         await db.saveHubHideStatus(req.body.system_id, true)
         res.status(200).send()
     }
     catch(err) {
-        log(err)
+        helpers.log(err)
         res.status(500).send()
     }
 })
@@ -428,12 +410,12 @@ app.post('/heartbeat/hide_system', jsonBodyParser, async (req, res) => {
 app.post('/heartbeat/unhide_system', jsonBodyParser, async (req, res) => {
 
     try {
-        log('got a request to show system ' + req.body.system_id)
+        helpers.log('got a request to show system ' + req.body.system_id)
         await db.saveHubHideStatus(req.body.system_id, false)
         res.status(200).send()
     }
     catch(err) {
-        log(err)
+        helpers.log(err)
         res.status(500).send()
     }
 })
@@ -442,12 +424,12 @@ app.post('/heartbeat/unhide_system', jsonBodyParser, async (req, res) => {
 app.post('/heartbeat/mute_system', jsonBodyParser, async (req, res) => {
 
     try {
-        log('got a request to unmute system ' + req.body.system_id)
+        helpers.log('got a request to unmute system ' + req.body.system_id)
         await db.saveHubMuteStatus(req.body.system_id, true)
         res.status(200).send()
     }
     catch(err) {
-        log(err)
+        helpers.log(err)
         res.status(500).send()
     }
 })
@@ -455,12 +437,12 @@ app.post('/heartbeat/mute_system', jsonBodyParser, async (req, res) => {
 app.post('/heartbeat/unmute_system', jsonBodyParser, async (req, res) => {
 
     try {
-        log('got a request to unmute system ' + req.body.system_id)
+        helpers.log('got a request to unmute system ' + req.body.system_id)
         await db.saveHubMuteStatus(req.body.system_id, false)
         res.status(200).send()
     }
     catch(err) {
-        log(err)
+        helpers.log(err)
         res.status(500).send()
     }
 })
@@ -517,7 +499,7 @@ async function checkHeartbeat() {
         let pingDelayMillis = currentTime.diff(pingLastSeenTime)
         
         if(flicDelayMillis > FLIC_THRESHOLD_MILLIS && !hub.sentAlerts) {
-            log(`flic threshold exceeded; flic delay is ${flicDelayMillis} ms. sending alerts for ${hub.systemName}`)
+            helpers.log(`flic threshold exceeded; flic delay is ${flicDelayMillis} ms. sending alerts for ${hub.systemName}`)
             await updateSentAlerts(hub, 'true')
             if(hub.muted) {
                 continue
@@ -525,7 +507,7 @@ async function checkHeartbeat() {
             sendAlerts('Darkstat has lost visibility of the Hub', hub.systemName, hub.heartbeatAlertRecipients)
         }
         else if(pingDelayMillis > PING_THRESHOLD_MILLIS && !hub.sentAlerts) {
-            log(`ping threshold exceeded; ping delay is ${pingDelayMillis} ms. sending alerts for ${hub.systemName}`)
+            helpers.log(`ping threshold exceeded; ping delay is ${pingDelayMillis} ms. sending alerts for ${hub.systemName}`)
             await updateSentAlerts(hub, 'true')
             if(hub.muted) {
                 continue
@@ -533,7 +515,7 @@ async function checkHeartbeat() {
             sendAlerts('Ping is unable to reach the Hub', hub.systemName, hub.heartbeatAlertRecipients)
         }
         else if(heartbeatDelayMillis > HEARTBEAT_THRESHOLD_MILLIS && !hub.sentAlerts) {
-            log(`heartbeat threshold exceeded; heartbeat delay is ${heartbeatDelayMillis} ms. sending alerts for ${hub.systemName}`)
+            helpers.log(`heartbeat threshold exceeded; heartbeat delay is ${heartbeatDelayMillis} ms. sending alerts for ${hub.systemName}`)
             await updateSentAlerts(hub, 'true')
             if(hub.muted) {
                 continue
@@ -541,7 +523,7 @@ async function checkHeartbeat() {
             sendAlerts('Heartbeat messages have stopped', hub.systemName, hub.heartbeatAlertRecipients)
         }
         else if((flicDelayMillis < FLIC_THRESHOLD_MILLIS) && (heartbeatDelayMillis < HEARTBEAT_THRESHOLD_MILLIS) && (pingDelayMillis < PING_THRESHOLD_MILLIS) && hub.sentAlerts) { 
-            log(`${hub.systemName} has reconnected.`)
+            helpers.log(`${hub.systemName} has reconnected.`)
             await updateSentAlerts(hub, 'false')
             if (hub.muted) {
                 continue
@@ -588,7 +570,7 @@ else {
     }
     server = https.createServer(httpsOptions, app).listen(443)
     setInterval(checkHeartbeat, 1000)
-    log('brave server listening on port 443')
+    helpers.log('brave server listening on port 443')
 }
 
 module.exports.server = server
