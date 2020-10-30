@@ -55,9 +55,8 @@ function isValidRequest(req, properties) {
     return properties.reduce(hasAllProperties, true);
 }
 
-async function handleValidRequest(button, numPresses) {
-
-    log('UUID: ' + button.button_id.toString() + ' Unit: ' + button.unit.toString() + ' Presses: ' + numPresses.toString());
+async function handleValidRequest(button, numPresses, batteryLevel) {
+    log('UUID: ' + button.button_id.toString() + ' SerialNumber: ' + button.button_serial_number + ' Unit: ' + button.unit.toString() + ' Presses: ' + numPresses.toString() + ' BatteryLevel: ' + batteryLevel)
 
     let client = await db.beginTransaction()
 
@@ -65,10 +64,15 @@ async function handleValidRequest(button, numPresses) {
         
     if(session === null) {
         session = await db.createSession(button.installation_id, button.button_id, button.unit, button.phone_number, numPresses, client)
-    }
-    else {
+    } else {
         session.incrementButtonPresses(numPresses)
         await db.saveSession(session, client)
+    }
+
+    if ((batteryLevel !== undefined) &&
+            (batteryLevel >= 0) &&
+            (batteryLevel <= 100)) {
+        await db.saveButtonBatteryLevel(button.button_serial_number, batteryLevel, client)
     }
 
     if(needToSendButtonPressMessageForSession(session)) {
@@ -293,24 +297,26 @@ app.get('/logout', (req, res) => {
     }
 });
 
-app.post('/flic_button_press', Validator.header(['button-serial-number','button-battery-level']).exists(), async (req, res) => {
+app.post('/flic_button_press', Validator.header(['button-serial-number']).exists(), async (req, res) => {
 
     try {
         const validationErrors = Validator.validationResult(req)
 
         if(validationErrors.isEmpty()){
-            let button = await db.getButtonWithSerialNumber(req.get('button-serial-number'))
-            if(button === null) {
-                log(`Bad request: Serial Number is not registered. Serial Number is ${req.get('button-serial-number')}`)
-                res.status(400).send();
-            }
-            else {
-                await handleValidRequest(button, 1)
+            const serialNumber = req.get('button-serial-number')
+            const batteryLevel = req.get('button-battery-level')
 
-                if(req.query.presses == 2) {
+            let button = await db.getButtonWithSerialNumber(serialNumber)
+            if(button === null) {
+                log(`Bad request: Serial Number is not registered. Serial Number is ${serialNumber}`)
+                res.status(400).send();
+            } else {
+                await handleValidRequest(button, 1, batteryLevel)
+
+                if (req.query.presses == 2) {
                     await handleValidRequest(button, 1)
                 }
-                await db.saveButtonBatteryLevel(req.get('button-serial-number'), req.get('button-battery-level'))
+
                 res.status(200).send();
             }
         }

@@ -9,6 +9,9 @@ was committed to the `master` branch. This is not necessarily the date that
 the code was deployed.
 
 ## [Unreleased]
+### Changed
+- Allow calls to `POST /flic_button_press` without the `button-battery-level` header (CU-f0w9qm).
+
 ### Fixed
 - Double click handling (CU-f0w9qm).
 - Button press counting for POST requests to '/' to workaround a MS Flow bug (CU-f0w9qm).
