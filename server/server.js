@@ -305,13 +305,12 @@ app.post('/flic_button_press', Validator.header(['button-serial-number','button-
                 res.status(400).send();
             }
             else {
-                let numPresses = 1
+                await handleValidRequest(button, 1)
 
                 if(req.query.presses == 2) {
-                    numPresses = 2;
+                    await handleValidRequest(button, 1)
                 }
                 await db.saveButtonBatteryLevel(req.get('button-serial-number'), req.get('button-battery-level'))
-                await handleValidRequest(button, numPresses)
                 res.status(200).send();
             }
         }
@@ -338,19 +337,16 @@ app.post('/', jsonBodyParser, async (req, res) => {
             if(button === null) {
                 log(`Bad request: UUID is not registered. UUID is ${req.body.UUID}`);
                 res.status(400).send();
-            }
-            else {
-                let numPresses = 1
+            } else {
+                await handleValidRequest(button, 1)
 
-                if(req.body.Type == 'double click') {
-                    numPresses = 2;
+                if (req.body.Type == 'double click') {
+                    await handleValidRequest(button, 1)
                 }
 
-                await handleValidRequest(button, numPresses)
                 res.status(200).send();
             }
-        }
-        else {
+        } else {
             log('Bad request: UUID is missing');
             res.status(400).send();
         }
