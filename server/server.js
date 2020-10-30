@@ -343,7 +343,7 @@ app.post('/', jsonBodyParser, async (req, res) => {
             else {
                 let numPresses = 1
 
-                if(req.body.Type == 'double_click') {
+                if(req.body.Type == 'double click') {
                     numPresses = 2;
                 }
 

@@ -9,6 +9,8 @@ was committed to the `master` branch. This is not necessarily the date that
 the code was deployed.
 
 ## [Unreleased]
+### Fixed
+- Double click handling (CU-f0w9qm).
 
 ## [2.0.0] - 2020-10-29
 ### Added
